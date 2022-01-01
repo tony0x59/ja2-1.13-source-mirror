@@ -7199,6 +7199,13 @@ BOOLEAN SOLDIERTYPE::EVENT_InternalGetNewSoldierPath( INT32 sDestGridNo, UINT16 
 	BOOLEAN						fAdvancePath = TRUE;
 	UINT8							fFlags = 0;
 
+	//shadooow: if collapsed and enough breath, get up first and wait for new input
+	if (this->bCollapsed && this->bBreath >= OKBREATH)
+	{
+		this->BeginSoldierGetup();
+		if(!this->bCollapsed) return FALSE;
+	}
+
 	// Ifd this code, make true if a player
 	if ( fFromUI == 3 )
 	{
@@ -7966,6 +7973,18 @@ void SOLDIERTYPE::EVENT_BeginMercTurn( BOOLEAN fFromRealTime, INT32 iRealTimeCou
 	{
 		// reduce the effects of any residual shock from past injuries by half
 		this->aiData.bShock /= 2;
+
+		// sevenfm: increase morale for AI soldiers
+		if (this->ubProfile == NO_PROFILE &&
+			!(this->flags.uiStatusFlags & SOLDIER_VEHICLE) &&
+			!AM_A_ROBOT(this) &&
+			!ARMED_VEHICLE(this) &&
+			this->aiData.bShock == 0 &&
+			!this->aiData.bUnderFire &&
+			this->aiData.bMorale < 80 + 2 * this->stats.bExpLevel)
+		{
+			this->aiData.bMorale = __min(80 + 2 * this->stats.bExpLevel, this->aiData.bMorale + 2 + this->stats.bExpLevel / 5);
+		}
 
 		// if this person has heard a noise that hasn't been investigated
 		if ( this->aiData.sNoiseGridno != NOWHERE )
@@ -16817,7 +16836,8 @@ BOOLEAN		SOLDIERTYPE::UsesScubaGear( )
 	if ( !(this->inv[HEAD1POS].exists( ) && HasItemFlag( this->inv[HEAD1POS].usItem, SCUBA_MASK )) && !(this->inv[HEAD2POS].exists( ) && HasItemFlag( this->inv[HEAD2POS].usItem, SCUBA_MASK )) )
 		return FALSE;
 
-	if ( !this->inv[CPACKPOCKPOS].exists( ) || !HasItemFlag( this->inv[CPACKPOCKPOS].usItem, SCUBA_BOTTLE ) )
+	if (!(this->inv[CPACKPOCKPOS].exists() && HasItemFlag(this->inv[CPACKPOCKPOS].usItem, SCUBA_BOTTLE)) &&
+		!(this->inv[BPACKPOCKPOS].exists() && HasItemFlag(this->inv[BPACKPOCKPOS].usItem, SCUBA_BOTTLE)))
 		return FALSE;
 
 	return TRUE;
@@ -26087,6 +26107,14 @@ BOOLEAN SOLDIERTYPE::TakenLargeHit(void)
 BOOLEAN SOLDIERTYPE::IsCowering(void)
 {
 	if (this->usAnimState == COWERING || this->usAnimState == COWERING_PRONE)
+		return TRUE;
+
+	return FALSE;
+}
+
+BOOLEAN SOLDIERTYPE::IsUnconscious(void)
+{
+	if (this->bCollapsed && this->bBreath < OKBREATH)
 		return TRUE;
 
 	return FALSE;

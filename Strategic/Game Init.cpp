@@ -92,6 +92,7 @@
 
 #include "PostalService.h"
 extern CPostalService gPostalService;
+extern void initMapViewAndBorderCoordinates(void);
 
 class OBJECTTYPE;
 class SOLDIERTYPE;
@@ -538,6 +539,8 @@ void ShutdownStrategicLayer()
 	ClearTacticalMessageQueue();
 }
 
+extern void DebugQuestInfo(STR szOutput);
+
 BOOLEAN InitNewGame( BOOLEAN fReset )
 {	
 	DebugMsg (TOPIC_JA2,DBG_LEVEL_3,"InitNewGame");
@@ -581,6 +584,8 @@ fFirstTimeInMapScreen = TRUE;
 	DebugMsg (TOPIC_JA2,DBG_LEVEL_3,"InitNewGame: set initial inventory coords");
 	if( gubScreenCount == 0 )
 	{
+		// Have to initialize map UI Coordinates, because inventory panel layout location depends on them.
+		initMapViewAndBorderCoordinates();
 		if((UsingNewInventorySystem() == true))
 		{
 			InitNewInventorySystem();
@@ -832,8 +837,6 @@ fFirstTimeInMapScreen = TRUE;
 		gubScreenCount = 2;
 		return( TRUE );
 	}
-
-	
 
 	DebugMsg (TOPIC_JA2,DBG_LEVEL_3,"InitNewGame done");
 	return( TRUE );

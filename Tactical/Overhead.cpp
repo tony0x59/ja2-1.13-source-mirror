@@ -117,6 +117,7 @@
 #include "finances.h"					// added by Flugente
 #include "MilitiaIndividual.h"			// added by Flugente
 #include "Rebel Command.h"
+#include "MilitiaSquads.h"
 #endif
 #include "connect.h"
 
@@ -7927,6 +7928,8 @@ BOOLEAN CheckForEndOfBattle( BOOLEAN fAnEnemyRetreated )
             }
 
             HandleMilitiaStatusInCurrentMapBeforeLoadingNewMap();
+            // rftr: dissolve any militia groups in the sector
+            DissolveAllMilitiaGroupsInSector( gWorldSectorX, gWorldSectorY );
             //gfStrategicMilitiaChangesMade = TRUE;
 
 
@@ -8743,20 +8746,29 @@ BOOLEAN AttackOnGroupWitnessed( SOLDIERTYPE * pSoldier, SOLDIERTYPE * pTarget )
 
 INT8 CalcSuppressionTolerance( SOLDIERTYPE * pSoldier )
 {
-    INT8        bTolerance;
+    INT8 bTolerance;
 
     // Calculate basic tolerance value
-    bTolerance = pSoldier->stats.bExpLevel * 2;
-    if (pSoldier->flags.uiStatusFlags & SOLDIER_PC)
-    {
-        // give +1 for every 10% morale from 50, for a maximum bonus/penalty of 5.
-        bTolerance += ( pSoldier->aiData.bMorale - 50 ) / 10;
-    }
-    else
-    {
-        // give +2 for every morale category from normal, for a max change of 4
-        bTolerance += ( pSoldier->aiData.bAIMorale - MORALE_NORMAL ) * 2;
-    }
+	if (gGameExternalOptions.fNewSuppressionCode)
+	{
+		// limit base tolerance to 75% when having max morale and experience level
+		// calculate tolerance as percent of max tolerance from INI
+		bTolerance = gGameExternalOptions.ubSuppressionToleranceMax * (100 + pSoldier->aiData.bMorale + 10 * EffectiveExpLevel(pSoldier, TRUE)) / 400;
+	}
+	else
+	{
+		bTolerance = pSoldier->stats.bExpLevel * 2;
+		if (pSoldier->flags.uiStatusFlags & SOLDIER_PC)
+		{
+			// give +1 for every 10% morale from 50, for a maximum bonus/penalty of 5.
+			bTolerance += (pSoldier->aiData.bMorale - 50) / 10;
+		}
+		else
+		{
+			// give +2 for every morale category from normal, for a max change of 4
+			bTolerance += (pSoldier->aiData.bAIMorale - MORALE_NORMAL) * 2;
+		}
+	}    
 
     if ( pSoldier->ubProfile != NO_PROFILE )
     {
@@ -8805,9 +8817,13 @@ INT8 CalcSuppressionTolerance( SOLDIERTYPE * pSoldier )
     }
 
     // HEADROCK HAM 3.2: This is actually a feature from HAM 2.9. It adds bonuses/penalties for nearby friends.
-    if (gGameExternalOptions.fFriendliesAffectTolerance)
+	// sevenfm: disabled with new code as nearby friends should help morale which affects base tolerance
+	if (gGameExternalOptions.fFriendliesAffectTolerance)
     {
-        bTolerance += CheckStatusNearbyFriendlies( pSoldier );
+		if (gGameExternalOptions.fNewSuppressionCode)
+			bTolerance += CheckStatusNearbyFriendliesSimple(pSoldier);
+		else
+			bTolerance += CheckStatusNearbyFriendlies( pSoldier );
     }
 
     // HEADROCK HAM 3.3: Moving rapidly makes one less prone to suppression.
@@ -8815,6 +8831,7 @@ INT8 CalcSuppressionTolerance( SOLDIERTYPE * pSoldier )
     {
         bTolerance += pSoldier->bTilesMoved / gGameExternalOptions.ubTilesMovedPerBonusTolerancePoint;
     }
+
     // HEADROCK HAM 3.6: This value has moved here. It reduces tolerance if the character is massively shocked.
     if (gGameExternalOptions.ubCowerEffectOnSuppression != 0)
     {
@@ -8825,8 +8842,11 @@ INT8 CalcSuppressionTolerance( SOLDIERTYPE * pSoldier )
     }
 
     // SANDRO - STOMP traits - squadleader's bonus to suppression tolerance
-    if ( gGameOptions.fNewTraitSystem && IS_MERC_BODY_TYPE(pSoldier) && 
-            (pSoldier->bTeam == ENEMY_TEAM || pSoldier->bTeam == MILITIA_TEAM || pSoldier->bTeam == gbPlayerNum) )
+	// sevenfm: disabled as EffectiveExpLevel and morale bonus also affect tolerance
+	if (!gGameExternalOptions.fNewSuppressionCode &&
+		gGameOptions.fNewTraitSystem && 
+		IS_MERC_BODY_TYPE(pSoldier) && 
+		(pSoldier->bTeam == ENEMY_TEAM || pSoldier->bTeam == MILITIA_TEAM || pSoldier->bTeam == gbPlayerNum) )
     {
         UINT8 ubNumberOfSL = GetSquadleadersCountInVicinity( pSoldier, FALSE, FALSE );
         // Also take ourselves into account
@@ -8839,11 +8859,17 @@ INT8 CalcSuppressionTolerance( SOLDIERTYPE * pSoldier )
         bTolerance += (bTolerance * gSkillTraitValues.ubSLOverallSuppresionBonusPercent * ubNumberOfSL / 100);
     }
 
-	// Flugente: add personal bonus to suppresion tolerance
-	bTolerance = (bTolerance * (100 + pSoldier->GetSuppressionResistanceBonus() ) / 100);
+	// sevenfm: make sure bTolerance is not negative before next calculation
+	bTolerance = max(bTolerance, 0);
 
-    bTolerance = __max(bTolerance, gGameExternalOptions.ubSuppressionToleranceMin);
-    bTolerance = __min(bTolerance, gGameExternalOptions.ubSuppressionToleranceMax);
+	// Flugente: add personal bonus to suppression tolerance
+	// sevenfm: apply in HandleSuppressionFire to AP loss instead
+	if (!gGameExternalOptions.fNewSuppressionCode)
+		bTolerance = (bTolerance * (100 + pSoldier->GetSuppressionResistanceBonus() ) / 100);
+
+    bTolerance = max(bTolerance, gGameExternalOptions.ubSuppressionToleranceMin);
+    bTolerance = min(bTolerance, gGameExternalOptions.ubSuppressionToleranceMax);
+
     return( bTolerance );
 }
 
@@ -8991,27 +9017,6 @@ void HandleSuppressionFire( UINT8 ubTargetedMerc, UINT8 ubCausedAttacker )
             // To turn off the entire Suppression system, simply set the INI value to 0. (0% AP Loss)
             // The default is obviously 100%. You can increase or decrease it, at will.
             // PLEASE NOTE that AP loss governs ALL OTHER SUPPRESSION EFFECTS.
-			// sevenfm: commented out duplicated code: we don't want to apply ubFinalSuppressionEffectivness twice
-			// ubPointsLost = ( ubPointsLost * sFinalSuppressionEffectiveness ) / 100;
-
-            // This is an upper cap for the number of APs we can lose per attack.
-			// sevenfm: commented out duplicated code:
-			/*
-            if (usLimitSuppressionAPsLostPerAttack > 0)
-            {
-                if (ubPointsLost > usLimitSuppressionAPsLostPerAttack)
-                {
-                    // Flugente: eh.. wouldn't this _always_ be 255? I suspect this should be __min
-                    //ubPointsLost = __max(255,(UINT8)usLimitSuppressionAPsLostPerAttack);
-                    ubPointsLost = __min(255,(UINT8)usLimitSuppressionAPsLostPerAttack);
-                }
-            }
-			*/
-
-            // INI-Controlled intensity. SuppressionEffectiveness acts as a percentage applied to the number of lost APs. 
-            // To turn off the entire Suppression system, simply set the INI value to 0. (0% AP Loss)
-            // The default is obviously 100%. You can increase or decrease it, at will.
-            // PLEASE NOTE that AP loss governs ALL OTHER SUPPRESSION EFFECTS.
             sPointsLost = ( sPointsLost * sFinalSuppressionEffectiveness ) / 100;
 
             // This is an upper cap for the number of APs we can lose per attack.
@@ -9101,7 +9106,18 @@ void HandleSuppressionFire( UINT8 ubTargetedMerc, UINT8 ubCausedAttacker )
             {
                 for ( ubLoop2 = 0; ubLoop2 < (sPointsLost / APBPConstants[AP_LOST_PER_MORALE_DROP]); ubLoop2++ )
                 {
-                    HandleMoraleEvent( pSoldier, MORALE_SUPPRESSED, pSoldier->sSectorX, pSoldier->sSectorY, pSoldier->bSectorZ );
+					// sevenfm: morale loss for AI soldiers
+					if (pSoldier->ubProfile == NO_PROFILE)
+					{
+						if (IS_MERC_BODY_TYPE(pSoldier))
+						{
+							pSoldier->aiData.bMorale = max(20 + 2 * pSoldier->stats.bExpLevel, pSoldier->aiData.bMorale - 4);
+						}
+					}
+					else
+					{
+						HandleMoraleEvent(pSoldier, MORALE_SUPPRESSED, pSoldier->sSectorX, pSoldier->sSectorY, pSoldier->bSectorZ);
+					}
 					// sevenfm: update ubLastMorale
 					pSoldier->ubLastMorale++;
                 }
@@ -9242,6 +9258,12 @@ void HandleSuppressionFire( UINT8 ubTargetedMerc, UINT8 ubCausedAttacker )
                     }
                 }
             }
+
+			// sevenfm: reduce AP loss because of suppression resistance
+			if (sPointsLost > 0 && gGameExternalOptions.fNewSuppressionCode)
+			{
+				sPointsLost -= sPointsLost * pSoldier->GetSuppressionResistanceBonus() / 200;
+			}
 
             // Reduce action points!
             // HEADROCK HAM Beta 2.2: Enforce a minimum limit via INI.
@@ -10792,11 +10814,10 @@ void RevealAllDroppedEnemyItems()
 INT8 CheckStatusNearbyFriendlies( SOLDIERTYPE *pSoldier )
 {
     SOLDIERTYPE * pLeader;
-    UINT8 sModifier = 0;
-    INT16 usEffectiveLeadership = 0;
-    UINT16 usEffectiveRangeToLeader = 0;
-    INT16 usBestLeader = 0;
-    INT16 usFriendBonus = 0;
+    INT16 sEffectiveLeadership = 0;
+    INT16 sEffectiveRangeToLeader = 0;
+    INT16 sBestLeader = 0;
+    INT16 sFriendBonus = 0;
     INT8 bLevelDifference = 0;
 
     // Run through each friendly.
@@ -10810,75 +10831,129 @@ INT8 CheckStatusNearbyFriendlies( SOLDIERTYPE *pSoldier )
         {
             bLevelDifference = pLeader->stats.bExpLevel - pSoldier->stats.bExpLevel;
             // Calculate character's leadership and range/3
-            usEffectiveLeadership = (EffectiveLeadership( pLeader ) - 25) / 15;
-            usEffectiveRangeToLeader = PythSpacesAway( pSoldier->sGridNo, pLeader->sGridNo ) / 3;
+            sEffectiveLeadership = (EffectiveLeadership( pLeader ) - 25) / 15;
+            sEffectiveRangeToLeader = PythSpacesAway( pSoldier->sGridNo, pLeader->sGridNo ) / 3;
 
             // SANDRO - add effective leadership and level to determine if we can help our friend to feel better :)
             if ( gGameOptions.fNewTraitSystem && HAS_SKILL_TRAIT( pLeader, SQUADLEADER_NT ) ) 
             {
                 bLevelDifference += (gSkillTraitValues.ubSLEffectiveLevelAsStandby * NUM_SKILL_TRAITS( pLeader, SQUADLEADER_NT ));
-                usEffectiveLeadership += (gSkillTraitValues.ubSLEffectiveLevelAsStandby * NUM_SKILL_TRAITS( pLeader, SQUADLEADER_NT ));
+                sEffectiveLeadership += (gSkillTraitValues.ubSLEffectiveLevelAsStandby * NUM_SKILL_TRAITS( pLeader, SQUADLEADER_NT ));
             }
 
             if ( bLevelDifference >= 0 )
             {
                 // If leader is within range of his leadership stat
-                if (usEffectiveRangeToLeader <= usEffectiveLeadership+1)
+                if (sEffectiveRangeToLeader <= sEffectiveLeadership+1)
                 {
                     // The difference in experience level is important!
-                    usEffectiveLeadership += bLevelDifference;
+                    sEffectiveLeadership += bLevelDifference;
                     // Reduce effective leadership with every 3 tiles of distance
-                    usEffectiveLeadership -= usEffectiveRangeToLeader-1;
+                    sEffectiveLeadership -= sEffectiveRangeToLeader-1;
 
                     // If this is the best leader we've seen so far,
-                    if (usEffectiveLeadership > usBestLeader)
+                    if (sEffectiveLeadership > sBestLeader)
                     {
                         // Set this as the best leader
-                        usBestLeader = usEffectiveLeadership;
+                        sBestLeader = sEffectiveLeadership;
                     }
                     // Friends within range always give at least one tolerance bonus point.
-                    usFriendBonus += 1;
+                    sFriendBonus += 1;
                 }
             }
         }
         // Incapacitated or heavily suppressed friends will not be good for our tolerance!
         else if ( (pLeader->aiData.bShock > pSoldier->aiData.bShock || pLeader->stats.bLife < OKLIFE) )
         {
-            usEffectiveRangeToLeader = PythSpacesAway( pSoldier->sGridNo, pLeader->sGridNo );
+            sEffectiveRangeToLeader = PythSpacesAway( pSoldier->sGridNo, pLeader->sGridNo );
             // If they are no more than 5 tiles away,
-            if (usEffectiveRangeToLeader <= 5)
+            if (sEffectiveRangeToLeader <= 5)
             {   
                 // Penalty is based on the difference between experience levels, and the range between them,
                 // and is never less than 1 point.
-                usEffectiveLeadership = (pLeader->stats.bExpLevel - pSoldier->stats.bExpLevel) / __max(1,(usEffectiveRangeToLeader/2));
-                usFriendBonus -= __max(1, usEffectiveLeadership);
+                sEffectiveLeadership = (pLeader->stats.bExpLevel - pSoldier->stats.bExpLevel) / __max(1,(sEffectiveRangeToLeader/2));
+                sFriendBonus -= __max(1, sEffectiveLeadership);
             }
             // SANDRO - however, dead squadleader is very bad for our psychics
             if ( gGameOptions.fNewTraitSystem && HAS_SKILL_TRAIT( pLeader, SQUADLEADER_NT ) && 
-                    ( pLeader->flags.uiStatusFlags & SOLDIER_DEAD ) && usEffectiveRangeToLeader <= 10 ) 
+                    ( pLeader->flags.uiStatusFlags & SOLDIER_DEAD ) && sEffectiveRangeToLeader <= 10 ) 
             {
-                usFriendBonus -= ( gSkillTraitValues.ubSLDeathMoralelossMultiplier * NUM_SKILL_TRAITS( pLeader, SQUADLEADER_NT ));
+                sFriendBonus -= ( gSkillTraitValues.ubSLDeathMoralelossMultiplier * NUM_SKILL_TRAITS( pLeader, SQUADLEADER_NT ));
             }
         }
     }
 
     // If we did find someone who's a good enough leader to help us out,
-    if (usBestLeader > 0)
+    if (sBestLeader > 0)
     {
         // Add his leadership bonus, minus the point we got for him before. He'll give at least one
         // point, like anybody else.
-        usFriendBonus += __max(usBestLeader-1, 1);
+        sFriendBonus += max(sBestLeader-1, 1);
     }
 
     // Add no more than five points for nearby friends.
-    usFriendBonus = __min(usFriendBonus, 5);
-    usFriendBonus = __max(usFriendBonus, -5);
-    sModifier += usFriendBonus;
+    sFriendBonus = min(sFriendBonus, 5);
+    sFriendBonus = max(sFriendBonus, -5);
 
-    return(sModifier);
-
+	return sFriendBonus;
 }
 
+// sevenfm: simplified version
+INT8 CheckStatusNearbyFriendliesSimple(SOLDIERTYPE *pSoldier)
+{
+	SOLDIERTYPE * pFriend;
+	FLOAT iFriendBonus = 0.0f;
+	FLOAT iModifier;
+	INT16 sDistance;
+	INT16 sMinDistance = TACTICAL_RANGE / 4;
+
+	if (!pSoldier || !pSoldier->bActive || TileIsOutOfBounds(pSoldier->sGridNo) || !IS_MERC_BODY_TYPE(pSoldier) || pSoldier->stats.bLife < OKLIFE || pSoldier->IsCowering() || pSoldier->IsUnconscious())
+	{
+		return 0;
+	}
+
+	// Run through each friendly.
+	for (UINT8 ubFriend = gTacticalStatus.Team[ pSoldier->bTeam ].bFirstID ; ubFriend <= gTacticalStatus.Team[ pSoldier->bTeam ].bLastID ; ubFriend ++)
+	{
+		pFriend = MercPtrs[ ubFriend ];
+
+		// Make sure that character is alive and active
+		if (pFriend && 
+			pFriend != pSoldier && 
+			pFriend->bActive && 
+			IS_MERC_BODY_TYPE(pFriend) &&
+			!TileIsOutOfBounds(pFriend->sGridNo) &&
+			//LocationToLocationLineOfSightTest(pSoldier->sGridNo, pSoldier->pathing.bLevel, pFriend->sGridNo, pFriend->pathing.bLevel, TRUE, CALC_FROM_ALL_DIRS))
+			SoldierToSoldierLineOfSightTest(pSoldier, pFriend, TRUE, CALC_FROM_ALL_DIRS))
+		{
+			sDistance = PythSpacesAway(pSoldier->sGridNo, pFriend->sGridNo);
+
+			iModifier = 1.0f;
+
+			if (pFriend->stats.bLife < OKLIFE)
+			{
+				// dying, negative effect
+				iModifier = -1.0f;
+			}
+			else if (pFriend->IsCowering() || pFriend->IsUnconscious())
+			{
+				// suppressed, negative modifier
+				iModifier = -0.5f;
+			}
+
+			// modifier depends on distance
+			iModifier = iModifier * (FLOAT)sMinDistance / (FLOAT)max(sMinDistance, sDistance);
+
+			iFriendBonus += iModifier;
+		}
+	}
+
+	// Add no more than five points for nearby friends.
+	iFriendBonus = min(iFriendBonus, 5.0f);
+	iFriendBonus = max(iFriendBonus, -5.0f);
+
+	return (INT8)iFriendBonus;
+}
 
 #ifdef JA2UB
 void SetMsgBoxForPlayerBeNotifiedOfSomeoneElseInSector()

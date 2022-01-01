@@ -101,6 +101,7 @@
 //forward declarations of common classes to eliminate includes
 class OBJECTTYPE;
 class SOLDIERTYPE;
+extern INV_REGION_DESC gMapScreenInvPocketXY[NUM_INV_SLOTS];	// ARRAY FOR INV PANEL INTERFACE ITEM POSITIONS
 
 //CHRISL: Moved to Interface Items.h for EDB
 //#define		ITEMDESC_FONT							BLOCKFONT2
@@ -1652,7 +1653,6 @@ void RenderInvBodyPanel( SOLDIERTYPE *pSoldier, INT16 sX, INT16 sY )
 	else
 	{
 		BltVideoObjectFromIndex( guiSAVEBUFFER, guiBodyInvVO[ pSoldier->ubBodyType ][ bSubImageIndex ], 0, sX, sY, VO_BLT_SRCTRANSPARENCY, NULL );
-
 	}
 }
 
@@ -2592,7 +2592,7 @@ void INVRenderINVPanelItem( SOLDIERTYPE *pSoldier, INT16 sPocket, UINT8 fDirtyLe
 					{
 						fHatchItOut = TRUE;
 					}
-					else if ( !pObject->exists() )	// Nothing in sPocket.  Display silouhette.
+					else if ( !pObject->exists() )	// Nothing in sPocket.  Display silhouette.
 					{
 						INVRenderSilhouette( guiSAVEBUFFER, lbePocket, 0, sX, sY, gSMInvData[ sPocket ].sWidth, gSMInvData[ sPocket ].sHeight);
 					}
@@ -2632,7 +2632,7 @@ void INVRenderINVPanelItem( SOLDIERTYPE *pSoldier, INT16 sPocket, UINT8 fDirtyLe
 				default:
 					/*if ( pObject->exists() == false )
 					{
-						// Display appropriate silouhette
+						// Display appropriate silhouette
 					}*/
 					break;
 			}
@@ -2642,38 +2642,6 @@ void INVRenderINVPanelItem( SOLDIERTYPE *pSoldier, INT16 sPocket, UINT8 fDirtyLe
 	if ( fDirtyLevel == DIRTYLEVEL2 )
 	{
 		// CHECK FOR COMPATIBILITY WITH MAGAZINES
-
-/*	OLD VERSION OF GUN/AMMO MATCH HIGHLIGHTING
-		UINT32	uiDestPitchBYTES;
-		UINT8		*pDestBuf;
-		UINT16	usLineColor;
-
-		if ( ( Item [ pSoldier->inv[ HANDPOS ].usItem ].usItemClass & IC_GUN )  && ( Item[ pObject->usItem ].usItemClass & IC_AMMO ) )
-		{
-			// CHECK
-			if (Weapon[pSoldier->inv[ HANDPOS ].usItem].ubCalibre == Magazine[Item[pObject->usItem].ubClassIndex].ubCalibre )
-			{
-				// IT's an OK calibre ammo, do something!
-				// Render Item with specific color
-				//fOutline = TRUE;
-				//sOutlineColor = Get16BPPColor( FROMRGB( 96, 104, 128 ) );
-				//sOutlineColor = Get16BPPColor( FROMRGB( 20, 20, 120 ) );
-
-				// Draw rectangle!
-				pDestBuf = LockVideoSurface( guiSAVEBUFFER, &uiDestPitchBYTES );
-				SetClippingRegionAndImageWidth( uiDestPitchBYTES, 0, 0, 640, 480 );
-
-				//usLineColor = Get16BPPColor( FROMRGB( 255, 255, 0 ) );
-				usLineColor = Get16BPPColor( FROMRGB( 230, 215, 196 ) );
-				RectangleDraw( TRUE, (sX+1), (sY+1), (sX + gSMInvData[ sPocket ].sWidth - 2 ),( sY + gSMInvData[ sPocket ].sHeight - 2 ), usLineColor, pDestBuf );
-
-				SetClippingRegionAndImageWidth( uiDestPitchBYTES, 0, 0, 640, 480 );
-
-				UnLockVideoSurface( guiSAVEBUFFER );
-			}
-		}
-*/
-
 		if ( gbCompatibleAmmo[ sPocket ] )
 		{
 			fOutline = TRUE;
@@ -2693,8 +2661,9 @@ void INVRenderINVPanelItem( SOLDIERTYPE *pSoldier, INT16 sPocket, UINT8 fDirtyLe
 			}
 			else
 			{	
-				newX = !UsingNewInventorySystem( ) ? (14 + xResOffset) : (6 + xResOffset);
-				newY = !UsingNewInventorySystem( ) ? (218 + yResOffset) : (217 + yResOffset);
+				newX = gMapScreenInvPocketXY[SECONDHANDPOS].sX - 10;
+				newY = gMapScreenInvPocketXY[SECONDHANDPOS].sY;
+
 				BltVideoObjectFromIndex( guiSAVEBUFFER, guiMapInvSecondHandBlockout, UsingNewInventorySystem(), newX, newY, VO_BLT_SRCTRANSPARENCY, NULL );
 				RestoreExternBackgroundRect( newX, newY, 102, 24 );
 			}
@@ -6442,8 +6411,8 @@ void ItemDescAttachmentsCallback( MOUSE_REGION * pRegion, INT32 iReason )
 		}
 		else
 		{
-			// ATE: Make sure we have enough AP's to drop it if we pick it up!
-			if ( pAttachment->exists() && EnoughPoints( gpItemDescSoldier, ( AttachmentAPCost( pAttachment->usItem, gpItemDescObject, gpItemPointerSoldier ) + APBPConstants[AP_PICKUP_ITEM] ), 0, TRUE ) )
+			// shadooow: removed checking extra cost for picking up the item
+			if ( pAttachment->exists() && EnoughPoints( gpItemDescSoldier, ( AttachmentAPCost( pAttachment->usItem, gpItemDescObject, gpItemPointerSoldier )), 0, TRUE ) )
 			{
 				// Flugente: if we are trying to remove the detonators of an armed bomb, auto-fail: it explodes
 				if ( gpItemPointerSoldier && ( (Item[gpItemDescObject->usItem].usItemClass & (IC_BOMB)) && ( ( (*gpItemDescObject)[ubStatusIndex]->data.misc.bDetonatorType == BOMB_TIMED ) || ( (*gpItemDescObject)[ubStatusIndex]->data.misc.bDetonatorType == BOMB_REMOTE ) ) )  )
@@ -8302,7 +8271,7 @@ void RenderLBENODEItems( OBJECTTYPE *pObj, int subObject )
 		if(lbePocket == 0){	// Deactivate Pocket
 			DrawHatchOnInventory( guiSAVEBUFFER, sX, sY, (UINT16)(LBEInvPocketXY[cnt].sWidth-1), (UINT16)(LBEInvPocketXY[cnt].sHeight-1), 0 );
 		}
-		else if(pObject == NULL){	// Nothing in sPocket.  Display silouhette.
+		else if(pObject == NULL){	// Nothing in sPocket.  Display silhouette.
 			INVRenderSilhouette( guiSAVEBUFFER, lbePocket, 0, sX, sY, LBEInvPocketXY[cnt].sWidth, LBEInvPocketXY[cnt].sHeight);
 		}
 		else if(pObject != NULL){
@@ -8369,10 +8338,12 @@ void DeleteItemDescriptionBox( )
 			originalIter != gOriginalAttachments.end() && newIter != (*gpItemDescObject)[0]->attachments.end();
 			++originalIter, ++newIter)
 			{
-				if(originalIter->exists()){
+				if(originalIter->exists())
+				{
 					originalSize++;
 				}
-				if(newIter->exists()){
+				if(newIter->exists())
+				{
 					newSize++;
 				}
 				// silversurfer: If we replaced one attachment with another the size will not differ so we need to check content too.
@@ -8383,33 +8354,58 @@ void DeleteItemDescriptionBox( )
 				}
 			}
 
-
-			if (newSize != originalSize || bAttachmentsDiffer) {
+			if (newSize != originalSize || bAttachmentsDiffer) 
+			{
 				//an attachment was changed, find the change
 				for (originalIter = gOriginalAttachments.begin(), newIter = (*gpItemDescObject)[0]->attachments.begin();
 					originalIter != gOriginalAttachments.end() && newIter != (*gpItemDescObject)[0]->attachments.end();
-					++originalIter, ++newIter) {
-					if (*originalIter == *newIter) {
+					++originalIter, ++newIter) 
+				{
+					if (*originalIter == *newIter) 
+					{
 						continue;
 					}
-					else {
+					else 
+					{
 						break;
 					}
 				}
-				if (newSize < originalSize) {
+				if (newSize < originalSize) 
+				{
 					//an attachment was removed, charge APs
 					ubAPCost = AttachmentAPCost(originalIter->usItem,gpItemDescObject, gpAttachSoldier ); // SANDRO - added argument
 				}
-				else {
+				else 
+				{
 					//an attachment was added charge APs
-					//lalien: changed to charge AP's for reloading a GL/RL
-					if ( Item[ gpItemDescObject->usItem ].usItemClass == IC_LAUNCHER || Item[gpItemDescObject->usItem].cannon )
+
+					// sevenfm: check if we are attaching grenade to launcher
+					OBJECTTYPE *pLauncher = NULL;
+					// check if loading GL
+					if (Item[gpItemDescObject->usItem].usItemClass & IC_WEAPON && Item[newIter->usItem].usItemClass & IC_EXPLOSV)
 					{
-						ubAPCost = GetAPsToReload( gpItemDescObject );
+						for (attachmentList::iterator iter = (*gpItemDescObject)[0]->attachments.begin(); iter != (*gpItemDescObject)[0]->attachments.end(); ++iter)
+						{
+							if (iter->exists() && ValidLaunchable(newIter->usItem, iter->usItem))
+							{
+								pLauncher = &(*iter);
+							}
+						}
+					}
+
+					if (Item[gpItemDescObject->usItem].usItemClass == IC_LAUNCHER && ValidLaunchable(newIter->usItem, gpItemDescObject->usItem) ||
+						Item[gpItemDescObject->usItem].cannon)
+					{
+						//lalien: changed to charge AP's for reloading a GL/RL
+						ubAPCost = GetAPsToReload(gpItemDescObject);
+					}
+					else if (pLauncher)
+					{
+						ubAPCost = GetAPsToReload(pLauncher);
 					}
 					else
 					{
-						ubAPCost = AttachmentAPCost(newIter->usItem,gpItemDescObject, gpAttachSoldier); // SANDRO - added argument
+						ubAPCost = AttachmentAPCost(newIter->usItem, gpItemDescObject, gpAttachSoldier); // SANDRO - added argument
 					}
 				}
 			}
@@ -9728,7 +9724,10 @@ BOOLEAN InitSectorStackPopup( SOLDIERTYPE *pSoldier, WORLDITEM *pInventoryPoolLi
 	fInterfacePanelDirty = DIRTYLEVEL2;
 
 	gfInSectorStackPopup = TRUE;
-	fShowInventoryFlag = TRUE;
+	if (!isWidescreenUI())
+	{
+		fShowInventoryFlag = TRUE;
+	}
 
 	//Restrict mouse cursor to panel
 	aRect.iLeft = sInvX + sOffSetX;
@@ -13589,10 +13588,21 @@ void ItemDescTransformRegionCallback( MOUSE_REGION *pRegion, INT32 reason )
 	{
 		// Behave like the background region, closing the box.
 		OBJECTTYPE *pTemp = gpItemDescPrevObject;
+		BOOLEAN fShopkeeperItem = FALSE;
+		// remember if this is a shopkeeper's item we're viewing ( pShopKeeperItemDescObject will get nuked on deletion )
+		if (guiTacticalInterfaceFlags & INTERFACE_SHOPKEEP_INTERFACE && pShopKeeperItemDescObject != NULL)
+		{
+			fShopkeeperItem = TRUE;
+		}
 		DeleteItemDescriptionBox( );
 		if (pTemp != NULL)
 		{
 			InternalInitItemDescriptionBox( pTemp, gsInvDescX, gsInvDescY, 0, gpItemDescSoldier );
+			if (fShopkeeperItem)
+			{
+				pShopKeeperItemDescObject = pTemp;
+				StartSKIDescriptionBox();
+			}
 		}	
 	}
 }
