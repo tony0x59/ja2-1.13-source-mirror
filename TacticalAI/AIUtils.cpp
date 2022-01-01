@@ -3925,10 +3925,13 @@ INT8 CalcMoraleNew(SOLDIERTYPE *pSoldier)
 	}
 
 	// limit AI morale when soldier is under heavy fire
-	if (pSoldier->ShockLevelPercent() > 75)
+	/*if (pSoldier->ShockLevelPercent() > 75)
 		bMoraleCategory = min(bMoraleCategory, MORALE_NORMAL);
 	else if (pSoldier->ShockLevelPercent() > 50)
-		bMoraleCategory = min(bMoraleCategory, MORALE_CONFIDENT);
+		bMoraleCategory = min(bMoraleCategory, MORALE_CONFIDENT);*/
+
+	// limit AI morale depending on morale and shock level
+	bMoraleCategory = min(bMoraleCategory, max(MORALE_WORRIED, ((pSoldier->aiData.bOrders == SEEKENEMY ? pSoldier->aiData.bMorale + 20 : pSoldier->aiData.bMorale) * 100 / (100 + pSoldier->ShockLevelPercent())) / 20));
 
 	// prevent hopeless morale when not under attack
 	if (bMoraleCategory == MORALE_HOPELESS && !pSoldier->aiData.bUnderFire)
@@ -4245,7 +4248,7 @@ BOOLEAN ProneSightCoverAtSpot(SOLDIERTYPE *pSoldier, INT32 sSpot, BOOLEAN fUnlim
 		else
 		{
 			gbForceWeaponReady = true;
-			iDistanceVisible = DistanceVisible(pSoldier, DIRECTION_IRRELEVANT, DIRECTION_IRRELEVANT, sSpot, pSoldier->pathing.bLevel, CoweringShockLevel(pSoldier), GetPercentTunnelVision(pSoldier));
+			iDistanceVisible = DistanceVisible(pSoldier, DIRECTION_IRRELEVANT, DIRECTION_IRRELEVANT, sSpot, pSoldier->pathing.bLevel, pSoldier->IsCowering(), GetPercentTunnelVision(pSoldier));
 			gbForceWeaponReady = false;
 			//iDistanceVisible = pSoldier->GetMaxDistanceVisible(sSpot, pSoldier->pathing.bLevel, CALC_FROM_WANTED_DIR);
 		}
@@ -4335,7 +4338,7 @@ BOOLEAN SightCoverAtSpot(SOLDIERTYPE *pSoldier, INT32 sSpot, BOOLEAN fUnlimited)
 		else
 		{
 			gbForceWeaponReady = true;
-			iDistanceVisible = DistanceVisible(pSoldier, DIRECTION_IRRELEVANT, DIRECTION_IRRELEVANT, sSpot, pSoldier->pathing.bLevel, CoweringShockLevel(pSoldier), GetPercentTunnelVision(pSoldier));
+			iDistanceVisible = DistanceVisible(pSoldier, DIRECTION_IRRELEVANT, DIRECTION_IRRELEVANT, sSpot, pSoldier->pathing.bLevel, pSoldier->IsCowering(), GetPercentTunnelVision(pSoldier));
 			gbForceWeaponReady = false;
 			//iDistanceVisible = pSoldier->GetMaxDistanceVisible(sSpot, pSoldier->pathing.bLevel, CALC_FROM_WANTED_DIR);
 		}		

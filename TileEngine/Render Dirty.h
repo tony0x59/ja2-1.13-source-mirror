@@ -8,6 +8,7 @@
 #define BGND_FLAG_MERC				0x10000000
 #define BGND_FLAG_SAVERECT		0x08000000
 #define BGND_FLAG_TOPMOST			0x04000000
+#define BGND_FLAG_IGNORE_RAIN	0x00000002
 #define BGND_FLAG_ANIMATED		0x00000001
 
 #define VOVERLAY_DIRTYBYTEXT					0x00000001
@@ -119,6 +120,7 @@ BOOLEAN SaveBackgroundRects(void);
 BOOLEAN InvalidateBackgroundRects(void);
 BOOLEAN UpdateSaveBuffer(void);
 BOOLEAN RestoreExternBackgroundRect( INT16 sLeft, INT16 sTop, INT16 sWidth, INT16 sHeight );
+BOOLEAN RestoreExternBackgroundRect(SGPRectangle rect);
 void SetBackgroundRectFilled( UINT32 uiBackgroundID );
 BOOLEAN EmptyBackgroundRects( void );
 

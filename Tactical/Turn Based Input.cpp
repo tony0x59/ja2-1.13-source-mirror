@@ -1832,7 +1832,7 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 						gfSaveGame = FALSE;
 						gfCameDirectlyFromGame = TRUE;
 
-						guiPreviousOptionScreen = GAME_SCREEN;
+						SetOptionsPreviousScreen(GAME_SCREEN);
 						
 						EscapeUILock();
 						// cancel, the player can move when it is not its turn!
@@ -1856,7 +1856,7 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 						gfSaveGame = FALSE;
 						gfCameDirectlyFromGame = TRUE;
 
-						guiPreviousOptionScreen = GAME_SCREEN;
+						SetOptionsPreviousScreen(GAME_SCREEN);
 						LeaveTacticalScreen( SAVE_LOAD_SCREEN );
 					}
 				}
@@ -3165,7 +3165,10 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 				}
 				else
 				{
-					BeginAutoBandage( );
+					if (DialogueQueueIsEmpty())//shadooow: trying to use autobandage during conversation will mess up game
+					{
+						BeginAutoBandage();
+					}
 				}
 				break;
 
@@ -4113,7 +4116,7 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 							if ( !fDisableMapInterfaceDueToBattle )
 							{
 								// go to Options screen
-								guiPreviousOptionScreen = GAME_SCREEN;
+								SetOptionsPreviousScreen(GAME_SCREEN);
 								LeaveTacticalScreen( OPTIONS_SCREEN );
 							}
 						}
@@ -4238,7 +4241,7 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 								gfSaveGame = TRUE;
 								gfCameDirectlyFromGame = TRUE;
 
-								guiPreviousOptionScreen = GAME_SCREEN;
+								SetOptionsPreviousScreen(GAME_SCREEN);
 								LeaveTacticalScreen( SAVE_LOAD_SCREEN );
 							}
 							else
@@ -4270,7 +4273,7 @@ void GetKeyboardInput( UINT32 *puiNewEvent )
 								//if the game CAN be saved
 								if ( CanGameBeSaved() )
 								{
-									guiPreviousOptionScreen = GAME_SCREEN;
+									SetOptionsPreviousScreen(GAME_SCREEN);
 									//guiPreviousOptionScreen = guiCurrentScreen;
 									DoQuickSave();
 								}
@@ -6302,6 +6305,10 @@ void HandleStanceChangeFromUIKeys( UINT8 ubAnimHeight )
 					UINT16 usNewState = pSoldier->GetNewSoldierStateFromNewStance(ubAnimHeight);
 					if (gAnimControl[pSoldier->usAnimState].ubEndHeight != ubAnimHeight)
 						pSoldier->usPendingAnimation = usNewState;
+				}
+				else if (pSoldier->bCollapsed && pSoldier->bBreath >= OKBREATH)
+				{
+					pSoldier->BeginSoldierGetup();
 				}
 				else
 				{

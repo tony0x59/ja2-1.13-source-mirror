@@ -182,6 +182,7 @@ extern void BeginLoadScreen( void );
 extern void EndLoadScreen();
 
 extern		CPostalService		gPostalService;
+extern void initMapViewAndBorderCoordinates(void);
 
 //Global variable used
 #ifdef JA2BETAVERSION
@@ -4529,6 +4530,7 @@ BOOLEAN SaveGame( int ubSaveGameID, STR16 pGameDesc )
 
 	//Save the save game settings
 	SaveGameSettings();
+	SaveFeatureFlags();
 
 	//
 	// Display a screen message that the save was succesful
@@ -4802,6 +4804,8 @@ BOOLEAN LoadSavedGame( int ubSavedGameID )
 		gGameOptions.ubAttachmentSystem = SaveGameHeader.sInitialGameOptions.ubAttachmentSystem;
 	}
 
+	// Have to initialize map UI Coordinates, because inventory panel layout location depends on them.
+	initMapViewAndBorderCoordinates();
 	if((UsingNewInventorySystem() == true))
 	{
 		if(IsNIVModeValid(true) == FALSE){
@@ -6583,7 +6587,7 @@ BOOLEAN LoadSavedGame( int ubSavedGameID )
 
 	//Save the save game settings
 	SaveGameSettings();
-
+	SaveFeatureFlags();
 
 	uiRelEndPerc += 1;
 	SetRelativeStartAndEndPercentage( 0, uiRelStartPerc, uiRelEndPerc, L"Final Checks..." );
@@ -6846,6 +6850,8 @@ BOOLEAN LoadSavedGame( int ubSavedGameID )
 	if ( fp_timelog )
 		fclose( fp_timelog );
 #endif
+
+	DebugQuestInfo("\n--------- Game loaded ---------");
 
 	return( TRUE );
 }

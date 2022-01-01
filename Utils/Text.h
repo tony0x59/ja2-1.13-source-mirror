@@ -1499,6 +1499,9 @@ enum
 	BOBBYR_GUNS_STUN,
 	BOBBYR_GUNS_PROTECTION,
 	BOBBYR_GUNS_CAMO,
+	BOBBYR_GUNS_ARMOUR_PIERCING_MODIFIER,
+	BOBBYR_GUNS_BULLET_TUMBLE_MODIFIER,
+	BOBBYR_GUNS_NUM_PROJECTILES,
 	BOBBYR_GUNS_COST,
 	BOBBYR_GUNS_IN_STOCK,
 	BOBBYR_GUNS_QTY_ON_ORDER,
@@ -2051,6 +2054,9 @@ enum
 	OPT_NEXT,
 	OPT_PREV,
 	OPT_DONE,
+	OPT_113_FEATURES,
+	OPT_NEW_IN_113,
+	OPT_OPTIONS,
 	OPT_SOUND_FX,
 	OPT_SPEECH,
 	OPT_MUSIC,
@@ -2061,6 +2067,10 @@ enum
 
 extern	STR16	zOptionsText[];
 
+extern	STR16	z113FeaturesScreenText[]; // main UI text
+extern	STR16	z113FeaturesToggleText[]; // toggle button text
+extern	STR16	z113FeaturesHelpText[]; // hover text
+extern	STR16	z113FeaturesPanelText[]; // left panel text
 
 //used with the gMoneyStatsDesc[]
 enum
