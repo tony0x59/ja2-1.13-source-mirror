@@ -4911,14 +4911,27 @@ struct RepairPriority : std::binary_function<RepairItem, RepairItem, bool> {
 			priority = 2;
 		else if ( itemClass == IC_FACE )
 			priority = 3;
-		else if ( IsWeapon(object.item->usItem) )
-			priority = 4;
+		else if (IsWeapon(object.item->usItem)) {
+			if ( !(Item[object.item->usItem].usItemClass & (IC_GUN | IC_LAUNCHER)) )
+				priority = 4;	// Weapons exclude guns, like grenade, knife, chemical break light etc ...
+			else if (object.inventorySlot != GUNSLINGPOCKPOS)
+				priority = 5;	// Guns
+			else
+				priority = 6;	// Weapon on GUNSLINGPOCKPOS
+		}
 		
 		// Set priority based on equip slot
 		if ((itemClass == IC_ARMOUR) &&  (object.inventorySlot == HELMETPOS || object.inventorySlot == VESTPOS || object.inventorySlot == LEGPOS))
-			priority = 5;
-		if ((IsWeapon(object.item->usItem)) && (object.inventorySlot == HANDPOS || object.inventorySlot == SECONDHANDPOS)) 
-			priority = 6;
+			priority = 7;
+		if (object.inventorySlot == HANDPOS || object.inventorySlot == SECONDHANDPOS) {
+			// is any better way to check item is shiled ?
+			BOOLEAN isShield = Item[object.item->usItem].usItemClass == IC_MISC;
+			if (IsWeapon(object.item->usItem) || isShield)
+				priority = 8;
+		}
+
+		if (!IsVehicle(const_cast<SOLDIERTYPE*>(object.owner)))
+			priority += 30;
 
 		// Set priority for jammed weapons; those weapons should always be highest priority
 		if (IsGunJammed(object.item))
@@ -5542,8 +5555,8 @@ void HandleRepairBySoldier( SOLDIERTYPE *pSoldier )
 
 #ifdef _DEBUG
 					if (itemRepaired)
-						ScreenMsg(FONT_ORANGE, MSG_BETAVERSION, L"Repaired: %s's %s in item slot %d [Dur: %d]. %d points left.", 
-							object.owner->name, Item[object.item->usItem].szItemName, object.inventorySlot, GetMinimumStackDurability(object.item), ubRepairPtsLeft);
+						ScreenMsg(FONT_ORANGE, MSG_INTERFACE, L"Repaired: %s's %s in item slot %d [Dur: %d]. %d points left.%x",
+						object.owner->name, Item[object.item->usItem].szItemName, object.inventorySlot, GetMinimumStackDurability(object.item), ubRepairPtsLeft, Item[object.item->usItem].usItemClass);
 #endif
 
 					// The following assumes that weapon/armor has higher priority than regular items! If the priorities are changed, this notification
@@ -5556,7 +5569,37 @@ void HandleRepairBySoldier( SOLDIERTYPE *pSoldier )
 						if (itemsToFix.empty())
 							ScreenMsg( FONT_MCOLOR_LTYELLOW, MSG_INTERFACE, sRepairsDoneString[ 3 ], pSoldier->GetName() );
 						else {
-							// The current item was a weapon/armor
+							// 判断当前是否是排除掉 velhicle 后的 last one？
+							if (!IsVehicle(const_cast<SOLDIERTYPE*>(object.owner)) && 
+								(IsWeapon(object.item->usItem) || Item[object.item->usItem].usItemClass == IC_ARMOUR))
+							{
+								// walk all queue
+								RepairQueue tempQueue = itemsToFix;
+								BOOLEAN hasFoundLeftItem = false;
+								while (!tempQueue.empty())
+								{
+									const RepairItem tmpObj = tempQueue.top();
+									// check is has weapon/armor
+									if (!IsVehicle(const_cast<SOLDIERTYPE*>(tmpObj.owner)) &&
+										(IsWeapon(tmpObj.item->usItem) || Item[tmpObj.item->usItem].usItemClass == IC_ARMOUR))
+									{
+										hasFoundLeftItem = true;
+										break;
+									}
+
+									// get next
+									tempQueue.pop();
+								}
+
+								if (!hasFoundLeftItem) {
+									// All weapons & armor have been repaired
+									// finished repairing everyone's guns & armor.
+									ScreenMsg(FONT_MCOLOR_LTYELLOW, MSG_INTERFACE, sRepairsDoneString[1], pSoldier->GetName());
+									StopTimeCompression();
+								}
+							}
+							/*
+							* origin code
 							if ( (IsWeapon(object.item->usItem) || Item[object.item->usItem].usItemClass == IC_ARMOUR) &&
 							// ...and the next item isn't:
 								 (!IsWeapon(itemsToFix.top().item->usItem) && Item[itemsToFix.top().item->usItem].usItemClass != IC_ARMOUR) ) 
@@ -5566,6 +5609,7 @@ void HandleRepairBySoldier( SOLDIERTYPE *pSoldier )
 								ScreenMsg( FONT_MCOLOR_LTYELLOW, MSG_INTERFACE, sRepairsDoneString[ 1 ], pSoldier->GetName() );
 								StopTimeCompression();
 							}
+							*/
 						}
 					}
 				}
